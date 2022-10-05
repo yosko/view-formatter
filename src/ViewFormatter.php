@@ -3,6 +3,7 @@
 namespace Yosko;
 
 use DateTime;
+use DateTimeZone;
 use Exception;
 use IntlDateFormatter;
 use NumberFormatter;
@@ -71,9 +72,22 @@ class ViewFormatter
         return self::$dateFormatter;
     }
 
-    public static function formatNumber($value): string
+    /**
+     * TODO: The $digits parameter doesn't seem to work...
+     */
+    public static function formatNumber($value, $digits = null): string
     {
-        return self::getNumberFormatter()->format($value);
+        $nbF = self::getNumberFormatter();
+        if (!is_null($digits)) {
+            $digitsOld = $nbF->getAttribute(\NumberFormatter::MAX_FRACTION_DIGITS);
+            $nbF->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $digits);
+        }
+        $parsed = $nbF->parse($value);
+        $result = $nbF->format($parsed);
+        if (!is_null($digits)) {
+            $nbF->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $digitsOld);
+        }
+        return $result;
     }
 
     /**
@@ -83,6 +97,44 @@ class ViewFormatter
     public static function formatCurrency($value): string
     {
         return self::getCurrencyFormatter()->formatCurrency($value, self::$config['currency']);
+    }
+
+    /**
+     * Gives the server's timezone
+     * @return DateTimeZone
+     */
+    public static function getServerTimezone():DateTimeZone {
+        return (new DateTime())->getTimezone();
+    }
+
+    /**
+     * Gives the server's timezone
+     * @return DateTimeZone
+     */
+    public static function getConfigTimezone():DateTimeZone {
+        return new DateTimeZone(self::$config['timezone']);
+    }
+
+    /**
+     * Gives the time offset to GMT from a given timezone on a given datetime
+     * @param string $datetimeStr
+     * @param DateTimeZone $timezone
+     * @param ?DateTimeZone $secondTimezone
+     * @return string|int HH:ii:ss or seconds
+     */
+    public static function getTimezoneOffset(string $datetimeStr, DateTimeZone $timezone, ?DateTimeZone $secondTimezone = null, $inSeconds = false):string {
+        $datetime = new DateTime($datetimeStr);
+        $offsetInSeconds = $timezone->getOffset($datetime);
+
+        if (!empty($secondTimezone)) {
+            $offsetInSeconds = $secondTimezone->getOffset($datetime) - $offsetInSeconds;
+        }
+
+        if ($inSeconds) {
+            return $offsetInSeconds;
+        }
+
+        return sprintf('%02d:%02d:%02d', ($offsetInSeconds/3600),($offsetInSeconds/60%60), $offsetInSeconds%60);
     }
 
     /**
@@ -153,23 +205,36 @@ class ViewFormatter
         return $result . self::getDateFormatter()->format($dateTo);
     }
 
+    /**
+     * TODO: accept both string AND DateTime as input?
+     */
     public static function formatMonth(DateTime $date): string
     {
         self::getDateFormatter()->setPattern('MMMM yyyy');
         return self::getDateFormatter()->format($date);
     }
 
+    protected static function getMondayWeekPosition(): int {
+        return (int) self::getDateFormatter()->formatObject(new DateTime('next Monday'),'e');
+    }
+
     public static function getDayNames($dayNumbers = []): array
     {
         if (empty($dayNumbers)) {
-            $dayNumbers = range(0, 6);
+            $mondayPos = self::getMondayWeekPosition();
+            $dayNumbers = range(1-$mondayPos, 1-$mondayPos+6);
         }
 
         $formatter = self::getDateFormatter();
         $formatter->setPattern('EEEE');
         return array_map(
             function ($day) use ($formatter) {
-                return $formatter->format(strtotime('next Monday +' . $day . ' days'));
+                //time
+                $formatter->setTimeZone(self::getServerTimezone());
+                $str = $formatter->format(strtotime('next Monday +' . $day . ' days'));
+                $formatter->setTimeZone(self::getConfigTimezone());
+                
+                return $str;
             },
             $dayNumbers
         );
@@ -177,6 +242,7 @@ class ViewFormatter
 
     public static function getWeekDayNames(): array
     {
+        $mondayPos = self::getMondayWeekPosition();
         return self::getDayNames(range(0, 4));
     }
 
@@ -184,6 +250,8 @@ class ViewFormatter
     {
         $date = new DateTime();
         $date->setDate($year, $month, 1);
+        // self::getDateFormatter()->setPattern('e');
+        // var_dump(self::getDateFormàatter()->format($date));
         return $date->format('N');
     }
 }
