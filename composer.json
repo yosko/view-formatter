@@ -1,0 +1,12 @@
+{
+  "name": "yosko/view-formatter",
+  "description": "PHP library to handle date, time, numbers and currency formatting destined to be displayed.",
+  "type": "library",
+  "license": "LGPL",
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "files": ["src/ViewFormatter.php"]
+  }
+}
