@@ -208,9 +208,9 @@ class ViewFormatter
     /**
      * TODO: accept both string AND DateTime as input?
      */
-    public static function formatMonth(DateTime $date): string
+    public static function formatMonth(DateTime $date, $short = false): string
     {
-        self::getDateFormatter()->setPattern('MMMM yyyy');
+        self::getDateFormatter()->setPattern($short ? 'MMM yy' : 'MMMM yyyy');
         return self::getDateFormatter()->format($date);
     }
 
