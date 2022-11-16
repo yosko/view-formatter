@@ -7,6 +7,7 @@ use DateTimeZone;
 use Exception;
 use IntlDateFormatter;
 use NumberFormatter;
+use RuntimeException;
 
 class ViewFormatter
 {
@@ -23,6 +24,7 @@ class ViewFormatter
 
     private static NumberFormatter $numberFormatter;
     private static NumberFormatter $currencyFormatter;
+    private static NumberFormatter $percentFormatter;
     private static IntlDateFormatter $dateFormatter;
 
     /**
@@ -31,7 +33,7 @@ class ViewFormatter
      */
     protected static function getNumberFormatter(): NumberFormatter
     {
-        if (!isset(self::$currencyFormatter)) {
+        if (!isset(self::$numberFormatter)) {
             self::$numberFormatter = new NumberFormatter(self::$config['locale'], NumberFormatter::DECIMAL);
             //self::$numberFormatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 0);
             //self::$numberFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 3);
@@ -51,6 +53,20 @@ class ViewFormatter
         }
 
         return self::$currencyFormatter;
+    }
+
+    /**
+     * initialize the percent formatter if it is not already set, then returns it
+     * @return NumberFormatter
+     */
+    protected static function getPercentFormatter(): NumberFormatter
+    {
+        if (!isset(self::$percentFormatter)) {
+            self::$percentFormatter = new NumberFormatter(self::$config['locale'], NumberFormatter::PERCENT);
+            self::$percentFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 1);
+        }
+
+        return self::$percentFormatter;
     }
 
     /**
@@ -82,7 +98,10 @@ class ViewFormatter
             $digitsOld = $nbF->getAttribute(\NumberFormatter::MAX_FRACTION_DIGITS);
             $nbF->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $digits);
         }
-        $parsed = $nbF->parse($value);
+        $parsed = $nbF->parse(round($value, $digits));
+        if ($parsed === false) {
+            throw new RuntimeException(sprintf('Could not parse number "%s". NumberFormatter returned error: %s', $value, $nbF->getErrorMessage()),$nbF->getErrorCode());
+        }
         $result = $nbF->format($parsed);
         if (!is_null($digits)) {
             $nbF->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $digitsOld);
@@ -97,6 +116,15 @@ class ViewFormatter
     public static function formatCurrency($value): string
     {
         return self::getCurrencyFormatter()->formatCurrency($value, self::$config['currency']);
+    }
+
+    /**
+     * @param string|float $value
+     * @return string
+     */
+    public static function formatPercent($value): string
+    {
+        return self::getPercentFormatter()->format($value);
     }
 
     /**
